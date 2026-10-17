@@ -1,0 +1,76 @@
+name: map-drop
+
+services:
+  auth-postgres:
+    image: postgres:18
+    container_name: map-drop-auth-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${AUTH_DB_USER:-auth_user}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-auth_password}
+      POSTGRES_DB: ${AUTH_DB_NAME:-auth_db}
+    ports:
+      - "${AUTH_DB_PORT:-5432}:5432"
+    volumes:
+      - auth_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  catalog-postgres:
+    image: postgres:18
+    container_name: map-drop-catalog-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${CATALOG_DB_USER:-catalog_user}
+      POSTGRES_PASSWORD: ${CATALOG_DB_PASSWORD:-catalog_password}
+      POSTGRES_DB: ${CATALOG_DB_NAME:-catalog_db}
+    ports:
+      - "${CATALOG_DB_PORT:-5433}:5432"
+    volumes:
+      - catalog_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  cart-postgres:
+    image: postgres:18
+    container_name: map-drop-cart-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${CART_DB_USER:-cart_user}
+      POSTGRES_PASSWORD: ${CART_DB_PASSWORD:-cart_password}
+      POSTGRES_DB: ${CART_DB_NAME:-cart_db}
+    ports:
+      - "${CART_DB_PORT:-5434}:5432"
+    volumes:
+      - cart_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    container_name: map-drop-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  auth_pgdata:
+  catalog_pgdata:
+  cart_pgdata:
+  redis_data:
