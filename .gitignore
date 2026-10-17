@@ -1,0 +1,25 @@
+.env
+.env.*
+!.env.example
+
+# Python & Poetry
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+
+# Java & Maven
+target/
+*.class
+*.jar
+.mvn/
+
+# IDE и ОС
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+*.log
