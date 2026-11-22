@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: auth-service
+  datasource:
+    url: ${AUTH_DB_URL:jdbc:postgresql://localhost:5432/auth_db}
+    username: ${AUTH_DB_USER:auth_user}
+    password: ${AUTH_DB_PASSWORD:auth_password}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+app:
+  auth:
+    access-token-ttl-seconds: ${AUTH_ACCESS_TTL_SECONDS:900}
+    refresh-token-ttl-days: ${AUTH_REFRESH_TTL_DAYS:30}
+    cookie-secure: ${AUTH_COOKIE_SECURE:false}
+    jwt:
+      private-key-pem: ${AUTH_JWT_PRIVATE_KEY_PEM:}
+      public-key-pem: ${AUTH_JWT_PUBLIC_KEY_PEM:}

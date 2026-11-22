@@ -10,20 +10,31 @@ __pycache__/
 .ruff_cache/
 dist/
 
-# Java & Maven
-target/
+# ----
+# Java
+# ----
+**/target/
 *.class
 *.jar
-.mvn/
+*.war
+*.ear
+# Maven Wrapper
+**/.mvn
+**/mvnw
+**/mvnw.cmd
+
+
 
 # IDE и ОС
-.idea/
-.vscode/
-*.iml
+**/idea/
+**/.vscode/
+**/.iml
 .DS_Store
 Thumbs.db
 *.log
 
 # for LLM
+.github/copilot-instructions.md
 fastapi-clean-architecture/
 SKILL.md
+
