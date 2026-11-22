@@ -3,9 +3,11 @@
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.openapi.utils import get_openapi
 
 from app.core.config import settings
 from app.core.dependencies import _engine, _redis_client, get_global_engine
@@ -28,7 +30,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Database models verified/created.")
     except Exception as exc:
         logger.warning(
-            "Could not initialize database on startup (may be running in test or offline): %s", exc
+            "Could not initialize database on startup (may be running in test or offline): %s",
+            exc,
         )
 
     yield
@@ -62,6 +65,36 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["Health"])
     async def health_check() -> dict[str, str]:
         return {"status": "ok", "service": "catalog-service"}
+
+    def custom_openapi() -> dict[str, Any]:
+        if app.openapi_schema:
+            return app.openapi_schema
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+        )
+        components = schema.setdefault("components", {})
+        components["securitySchemes"] = {
+            "UserRoleAuth": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-User-Role",
+                "description": "User role (CLIENT, SELLER, MODERATOR) forwarded by API Gateway",
+            },
+            "UserIdAuth": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-User-Id",
+                "description": "User identifier forwarded by API Gateway",
+            },
+        }
+        schema["security"] = [{"UserRoleAuth": [], "UserIdAuth": []}]
+        app.openapi_schema = schema
+        return app.openapi_schema
+
+    app.openapi = custom_openapi  # type: ignore[method-assign]
 
     return app
 

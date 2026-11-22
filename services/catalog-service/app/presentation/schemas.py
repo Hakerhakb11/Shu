@@ -141,3 +141,10 @@ class BatchItemResponse(BaseModel):
     status: str
     stock: int
     available: bool
+
+
+class ErrorResponse(BaseModel):
+    """Standardized API error response."""
+
+    detail: str = Field(..., description="Человекочитаемое описание ошибки")
+    error_code: str = Field(..., description="Машиночитаемый код ошибки")

@@ -90,6 +90,14 @@ services:
       timeout: 5s
       retries: 10
 
+  # contracts / docs────────────────────────────────────────────────────────────────────────
+  contracts:
+    build: contracts
+    container_name: shu-contracts
+    restart: unless-stopped
+    ports:
+      - "${CONTRACTS_PORT:-8085}:8080"
+
 volumes:
   auth_pgdata:
   catalog_pgdata:

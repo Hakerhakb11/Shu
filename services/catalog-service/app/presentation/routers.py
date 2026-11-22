@@ -1,6 +1,7 @@
 """FastAPI Presentation layer: API Routers."""
 
 import math
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, status
 
@@ -18,6 +19,7 @@ from app.presentation.schemas import (
     CategoryCreateRequest,
     CategoryResponse,
     CharacteristicResponse,
+    ErrorResponse,
     ItemCreateRequest,
     ItemListItemResponse,
     ItemResponse,
@@ -27,6 +29,28 @@ from app.presentation.schemas import (
 )
 
 router = APIRouter(prefix="/catalog", tags=["Catalog"])
+
+# Standardized OpenAPI error responses
+RESPONSES_404: dict[int | str, dict[str, Any]] = {
+    status.HTTP_404_NOT_FOUND: {
+        "model": ErrorResponse,
+        "description": "Сущность не найдена в системе (ITEM_NOT_FOUND или CATEGORY_NOT_FOUND)",
+    }
+}
+
+RESPONSES_403: dict[int | str, dict[str, Any]] = {
+    status.HTTP_403_FORBIDDEN: {
+        "model": ErrorResponse,
+        "description": "Доступ запрещен: недостаточно прав или попытка изменить чужой товар",
+    }
+}
+
+RESPONSES_400: dict[int | str, dict[str, Any]] = {
+    status.HTTP_400_BAD_REQUEST: {
+        "model": ErrorResponse,
+        "description": "Некорректные параметры запроса или недопустимая операция",
+    }
+}
 
 
 def _to_item_response(item: Item) -> ItemResponse:
@@ -83,6 +107,7 @@ def _to_list_item_response(item: Item) -> ItemListItemResponse:
     "/items",
     response_model=PaginatedItemListResponse,
     summary="Получение списка товаров с пагинацией, фильтрацией и поиском",
+    responses={**RESPONSES_400},
 )
 async def list_items(
     page: int = Query(1, ge=1, description="Номер страницы"),
@@ -115,6 +140,7 @@ async def list_items(
     "/items/{item_id}",
     response_model=ItemResponse,
     summary="Получение подробной карточки конкретного товара (кэшируется в Redis)",
+    responses={**RESPONSES_404},
 )
 async def get_item(
     item_id: int,
@@ -128,6 +154,7 @@ async def get_item(
     "/items/batch",
     response_model=list[BatchItemResponse],
     summary="Пакетное получение информации о товарах (для Сервиса Корзины)",
+    responses={**RESPONSES_400},
 )
 async def get_items_batch(
     payload: BatchItemsRequest,
@@ -174,6 +201,7 @@ async def list_categories(
     response_model=CategoryResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Создание категории",
+    responses={**RESPONSES_400},
 )
 async def create_category(
     payload: CategoryCreateRequest,
@@ -202,6 +230,7 @@ async def create_category(
     response_model=ItemResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Создание товара продавцом (требуется X-User-Role: SELLER)",
+    responses={**RESPONSES_403, **RESPONSES_404, **RESPONSES_400},
 )
 async def create_item(
     payload: ItemCreateRequest,
@@ -231,6 +260,7 @@ async def create_item(
     "/items/{item_id}",
     response_model=ItemResponse,
     summary="Редактирование товара (продавец может менять свой товар, модератор — любой)",
+    responses={**RESPONSES_403, **RESPONSES_404, **RESPONSES_400},
 )
 async def update_item(
     item_id: int,
@@ -265,6 +295,7 @@ async def update_item(
     "/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Удаление товара (продавец может удалять свой товар, модератор — любой)",
+    responses={**RESPONSES_403, **RESPONSES_404},
 )
 async def delete_item(
     item_id: int,
@@ -284,6 +315,7 @@ async def delete_item(
     "/moderation/items",
     response_model=PaginatedItemListResponse,
     summary="Получение списка товаров, ожидающих проверки (PENDING). Только MODERATOR",
+    responses={**RESPONSES_403},
 )
 async def get_moderation_items(
     page: int = Query(1, ge=1),
@@ -306,6 +338,7 @@ async def get_moderation_items(
     "/items/{item_id}/status",
     response_model=ItemResponse,
     summary="Изменить статус товара (APPROVED, REJECTED, BLOCKED). Только MODERATOR",
+    responses={**RESPONSES_403, **RESPONSES_404, **RESPONSES_400},
 )
 async def update_item_status(
     item_id: int,

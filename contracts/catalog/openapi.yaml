@@ -1,0 +1,970 @@
+openapi: 3.1.0
+info:
+  title: Catalog Service
+  description: Book marketplace catalog microservice with Clean Architecture, PostgreSQL,
+    and Redis caching.
+  version: 0.1.0
+paths:
+  /catalog/items:
+    get:
+      tags:
+      - Catalog
+      summary: Получение списка товаров с пагинацией, фильтрацией и поиском
+      operationId: list_items_catalog_items_get
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          description: Номер страницы
+          default: 1
+          title: Page
+        description: Номер страницы
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: Количество товаров на странице
+          default: 20
+          title: Size
+        description: Количество товаров на странице
+      - name: category_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Фильтр по категории
+          title: Category Id
+        description: Фильтр по категории
+      - name: min_price
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+            minimum: 0
+          - type: 'null'
+          description: Минимальная цена
+          title: Min Price
+        description: Минимальная цена
+      - name: max_price
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+            minimum: 0
+          - type: 'null'
+          description: Максимальная цена
+          title: Max Price
+        description: Максимальная цена
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Полнотекстовый поиск по названию/автору
+          title: Search
+        description: Полнотекстовый поиск по названию/автору
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedItemListResponse'
+        '400':
+          description: Некорректные параметры запроса или недопустимая операция
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - Catalog
+      summary: 'Создание товара продавцом (требуется X-User-Role: SELLER)'
+      operationId: create_item_catalog_items_post
+      parameters:
+      - name: X-User-Role
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Role
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemCreateRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemResponse'
+        '403':
+          description: 'Доступ запрещен: недостаточно прав или попытка изменить чужой
+            товар'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Сущность не найдена в системе (ITEM_NOT_FOUND или CATEGORY_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Некорректные параметры запроса или недопустимая операция
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /catalog/items/{item_id}:
+    get:
+      tags:
+      - Catalog
+      summary: Получение подробной карточки конкретного товара (кэшируется в Redis)
+      operationId: get_item_catalog_items__item_id__get
+      parameters:
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Item Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemResponse'
+        '404':
+          description: Сущность не найдена в системе (ITEM_NOT_FOUND или CATEGORY_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - Catalog
+      summary: Редактирование товара (продавец может менять свой товар, модератор
+        — любой)
+      operationId: update_item_catalog_items__item_id__put
+      parameters:
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Item Id
+      - name: X-User-Role
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Role
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemResponse'
+        '403':
+          description: 'Доступ запрещен: недостаточно прав или попытка изменить чужой
+            товар'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Сущность не найдена в системе (ITEM_NOT_FOUND или CATEGORY_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Некорректные параметры запроса или недопустимая операция
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Catalog
+      summary: Удаление товара (продавец может удалять свой товар, модератор — любой)
+      operationId: delete_item_catalog_items__item_id__delete
+      parameters:
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Item Id
+      - name: X-User-Role
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Role
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '204':
+          description: Successful Response
+        '403':
+          description: 'Доступ запрещен: недостаточно прав или попытка изменить чужой
+            товар'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Сущность не найдена в системе (ITEM_NOT_FOUND или CATEGORY_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /catalog/items/batch:
+    post:
+      tags:
+      - Catalog
+      summary: Пакетное получение информации о товарах (для Сервиса Корзины)
+      operationId: get_items_batch_catalog_items_batch_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchItemsRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/BatchItemResponse'
+                type: array
+                title: Response Get Items Batch Catalog Items Batch Post
+        '400':
+          description: Некорректные параметры запроса или недопустимая операция
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /catalog/categories:
+    get:
+      tags:
+      - Catalog
+      summary: Получение списка всех категорий
+      operationId: list_categories_catalog_categories_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/CategoryResponse'
+                type: array
+                title: Response List Categories Catalog Categories Get
+    post:
+      tags:
+      - Catalog
+      summary: Создание категории
+      operationId: create_category_catalog_categories_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryCreateRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          description: Некорректные параметры запроса или недопустимая операция
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /catalog/moderation/items:
+    get:
+      tags:
+      - Catalog
+      summary: Получение списка товаров, ожидающих проверки (PENDING). Только MODERATOR
+      operationId: get_moderation_items_catalog_moderation_items_get
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 20
+          title: Size
+      - name: X-User-Role
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Role
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedItemListResponse'
+        '403':
+          description: 'Доступ запрещен: недостаточно прав или попытка изменить чужой
+            товар'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /catalog/items/{item_id}/status:
+    patch:
+      tags:
+      - Catalog
+      summary: Изменить статус товара (APPROVED, REJECTED, BLOCKED). Только MODERATOR
+      operationId: update_item_status_catalog_items__item_id__status_patch
+      parameters:
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Item Id
+      - name: X-User-Role
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemStatusUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemResponse'
+        '403':
+          description: 'Доступ запрещен: недостаточно прав или попытка изменить чужой
+            товар'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Сущность не найдена в системе (ITEM_NOT_FOUND или CATEGORY_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Некорректные параметры запроса или недопустимая операция
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /health:
+    get:
+      tags:
+      - Health
+      summary: Health Check
+      operationId: health_check_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Health Check Health Get
+components:
+  schemas:
+    BatchItemResponse:
+      properties:
+        id:
+          type: integer
+          title: Id
+        title:
+          type: string
+          title: Title
+        author:
+          type: string
+          title: Author
+        price:
+          type: number
+          title: Price
+        image_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Image Url
+        status:
+          type: string
+          title: Status
+        stock:
+          type: integer
+          title: Stock
+        available:
+          type: boolean
+          title: Available
+      type: object
+      required:
+      - id
+      - title
+      - author
+      - price
+      - status
+      - stock
+      - available
+      title: BatchItemResponse
+      description: Data required by Cart Service for items in cart.
+    BatchItemsRequest:
+      properties:
+        item_ids:
+          items:
+            type: integer
+          type: array
+          title: Item Ids
+          description: Список идентификаторов товаров
+      type: object
+      required:
+      - item_ids
+      title: BatchItemsRequest
+    CategoryCreateRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 2
+          title: Name
+        slug:
+          type: string
+          maxLength: 255
+          minLength: 2
+          title: Slug
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+      type: object
+      required:
+      - name
+      - slug
+      title: CategoryCreateRequest
+    CategoryResponse:
+      properties:
+        id:
+          type: integer
+          title: Id
+        name:
+          type: string
+          title: Name
+        slug:
+          type: string
+          title: Slug
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+      type: object
+      required:
+      - id
+      - name
+      - slug
+      title: CategoryResponse
+    CharacteristicCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Name
+        value:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Value
+      type: object
+      required:
+      - name
+      - value
+      title: CharacteristicCreate
+    CharacteristicResponse:
+      properties:
+        id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Id
+        name:
+          type: string
+          title: Name
+        value:
+          type: string
+          title: Value
+      type: object
+      required:
+      - name
+      - value
+      title: CharacteristicResponse
+    ErrorResponse:
+      properties:
+        detail:
+          type: string
+          title: Detail
+          description: Человекочитаемое описание ошибки
+        error_code:
+          type: string
+          title: Error Code
+          description: Машиночитаемый код ошибки
+      type: object
+      required:
+      - detail
+      - error_code
+      title: ErrorResponse
+      description: Standardized API error response.
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    ItemCreateRequest:
+      properties:
+        title:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Title
+          description: Название книги
+        author:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Author
+          description: Автор книги
+        description:
+          type: string
+          minLength: 1
+          title: Description
+          description: Описание состояния и содержания
+        price:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Price
+          description: Цена в рублях
+        category_id:
+          type: integer
+          title: Category Id
+          description: ID категории
+        stock:
+          type: integer
+          minimum: 0.0
+          title: Stock
+          description: Остаток на складе
+          default: 1
+        image_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Image Url
+          description: Ссылка на фото обложки
+        characteristics:
+          items:
+            $ref: '#/components/schemas/CharacteristicCreate'
+          type: array
+          title: Characteristics
+          description: Характеристики (ISBN, переплет, издательство и т.д.)
+      type: object
+      required:
+      - title
+      - author
+      - description
+      - price
+      - category_id
+      title: ItemCreateRequest
+    ItemListItemResponse:
+      properties:
+        id:
+          type: integer
+          title: Id
+        title:
+          type: string
+          title: Title
+        author:
+          type: string
+          title: Author
+        price:
+          type: number
+          title: Price
+        category_id:
+          type: integer
+          title: Category Id
+        seller_id:
+          type: string
+          title: Seller Id
+        status:
+          type: string
+          title: Status
+        image_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Image Url
+        stock:
+          type: integer
+          title: Stock
+      type: object
+      required:
+      - id
+      - title
+      - author
+      - price
+      - category_id
+      - seller_id
+      - status
+      - stock
+      title: ItemListItemResponse
+    ItemResponse:
+      properties:
+        id:
+          type: integer
+          title: Id
+        title:
+          type: string
+          title: Title
+        author:
+          type: string
+          title: Author
+        description:
+          type: string
+          title: Description
+        price:
+          type: number
+          title: Price
+        category_id:
+          type: integer
+          title: Category Id
+        seller_id:
+          type: string
+          title: Seller Id
+        status:
+          type: string
+          title: Status
+        image_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Image Url
+        stock:
+          type: integer
+          title: Stock
+        characteristics:
+          items:
+            $ref: '#/components/schemas/CharacteristicResponse'
+          type: array
+          title: Characteristics
+        category:
+          anyOf:
+          - $ref: '#/components/schemas/CategoryResponse'
+          - type: 'null'
+        created_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Updated At
+      type: object
+      required:
+      - id
+      - title
+      - author
+      - description
+      - price
+      - category_id
+      - seller_id
+      - status
+      - stock
+      title: ItemResponse
+      description: Detailed item card.
+    ItemStatusEnum:
+      type: string
+      enum:
+      - PENDING
+      - APPROVED
+      - REJECTED
+      - BLOCKED
+      title: ItemStatusEnum
+    ItemStatusUpdateRequest:
+      properties:
+        status:
+          $ref: '#/components/schemas/ItemStatusEnum'
+          description: Новый статус товара
+      type: object
+      required:
+      - status
+      title: ItemStatusUpdateRequest
+    ItemUpdateRequest:
+      properties:
+        title:
+          anyOf:
+          - type: string
+            maxLength: 255
+            minLength: 1
+          - type: 'null'
+          title: Title
+        author:
+          anyOf:
+          - type: string
+            maxLength: 255
+            minLength: 1
+          - type: 'null'
+          title: Author
+        description:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Description
+        price:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Price
+        category_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Category Id
+        stock:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Stock
+        image_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Image Url
+        characteristics:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/CharacteristicCreate'
+            type: array
+          - type: 'null'
+          title: Characteristics
+      type: object
+      title: ItemUpdateRequest
+    PaginatedItemListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ItemListItemResponse'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+        page:
+          type: integer
+          title: Page
+        size:
+          type: integer
+          title: Size
+        pages:
+          type: integer
+          title: Pages
+      type: object
+      required:
+      - items
+      - total
+      - page
+      - size
+      - pages
+      title: PaginatedItemListResponse
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+  securitySchemes:
+    UserRoleAuth:
+      type: apiKey
+      in: header
+      name: X-User-Role
+      description: User role (CLIENT, SELLER, MODERATOR) forwarded by API Gateway
+    UserIdAuth:
+      type: apiKey
+      in: header
+      name: X-User-Id
+      description: User identifier forwarded by API Gateway
+security:
+- UserRoleAuth: []
+  UserIdAuth: []
