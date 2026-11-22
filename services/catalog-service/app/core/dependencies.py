@@ -133,14 +133,14 @@ def require_seller_or_moderator(
     x_user_role: str | None = Header(default=None, alias="X-User-Role"),
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
 ) -> tuple[str, str]:
-    """Verify that caller is either SELLER (for own item) or MODERATOR (for any item)."""
-    if not x_user_role or x_user_role.upper() == "CLIENT":
+    """Verify that caller is either SELLER (for own item), or MODERATOR/ADMIN (for any item)."""
+    if not x_user_role or x_user_role.upper() in ("CLIENT", "COURIER"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Доступ запрещен: роль CLIENT не может изменять или удалять товары.",
+            detail="Доступ запрещен: роль CLIENT/COURIER не может изменять или удалять товары.",
         )
     role_norm = x_user_role.upper()
-    if role_norm not in ("SELLER", "MODERATOR"):
+    if role_norm not in ("SELLER", "MODERATOR", "ADMIN"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Недостаточно прав.",
@@ -156,16 +156,16 @@ def require_seller_or_moderator(
 def require_moderator_role(
     x_user_role: str | None = Header(default=None, alias="X-User-Role"),
 ) -> str:
-    """Verify that caller has MODERATOR role."""
-    if not x_user_role or x_user_role.upper() in ("CLIENT", "SELLER"):
+    """Verify that caller has MODERATOR or ADMIN role."""
+    if not x_user_role or x_user_role.upper() in ("CLIENT", "SELLER", "COURIER"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Доступ запрещен: требуется роль MODERATOR.",
+            detail="Доступ запрещен: требуется роль MODERATOR или ADMIN.",
         )
     role_norm = x_user_role.upper()
-    if role_norm != "MODERATOR":
+    if role_norm not in ("MODERATOR", "ADMIN"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Доступ запрещен: требуется роль MODERATOR.",
+            detail="Доступ запрещен: требуется роль MODERATOR или ADMIN.",
         )
     return role_norm

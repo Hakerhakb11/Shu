@@ -167,8 +167,8 @@ class CatalogService:
     ) -> tuple[list[Item], int]:
         """Moderator listing of items awaiting review (PENDING)."""
         role_normalized = str(user_role).upper()
-        if role_normalized != UserRole.MODERATOR.value:
-            raise PermissionDeniedError("Доступ запрещен: требуется роль MODERATOR.")
+        if role_normalized not in (UserRole.MODERATOR.value, UserRole.ADMIN.value):
+            raise PermissionDeniedError("Доступ запрещен: требуется роль MODERATOR или ADMIN.")
 
         return await self.item_repo.list_items(
             page=page,
@@ -182,10 +182,10 @@ class CatalogService:
         new_status: ItemStatus,
         user_role: str,
     ) -> Item:
-        """Change item status (APPROVED, REJECTED, BLOCKED). Moderator only."""
+        """Change item status (APPROVED, REJECTED, BLOCKED). Moderator/Admin only."""
         role_normalized = str(user_role).upper()
-        if role_normalized != UserRole.MODERATOR.value:
-            raise PermissionDeniedError("Доступ запрещен: требуется роль MODERATOR.")
+        if role_normalized not in (UserRole.MODERATOR.value, UserRole.ADMIN.value):
+            raise PermissionDeniedError("Доступ запрещен: требуется роль MODERATOR или ADMIN.")
 
         item = await self.item_repo.get_by_id(item_id)
         if item is None:

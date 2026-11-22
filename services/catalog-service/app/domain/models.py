@@ -8,6 +8,7 @@ from enum import Enum
 class ItemStatus(str, Enum):
     """Lifecycle status of a catalog item."""
 
+    DRAFT = "DRAFT"
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
@@ -20,6 +21,8 @@ class UserRole(str, Enum):
     CLIENT = "CLIENT"
     SELLER = "SELLER"
     MODERATOR = "MODERATOR"
+    ADMIN = "ADMIN"
+    COURIER = "COURIER"
 
 
 @dataclass
@@ -71,9 +74,9 @@ class Item:
     updated_at: datetime | None = None
 
     def can_be_edited_by(self, user_id: str, role: UserRole | str) -> bool:
-        """Moderators can edit any item; sellers can only edit their own items."""
+        """Moderators and Admins can edit any item; sellers can only edit their own items."""
         role_str = role.value if isinstance(role, UserRole) else str(role).upper()
-        if role_str == UserRole.MODERATOR.value:
+        if role_str in (UserRole.MODERATOR.value, UserRole.ADMIN.value):
             return True
         if role_str == UserRole.SELLER.value and str(self.seller_id) == str(user_id):
             return True

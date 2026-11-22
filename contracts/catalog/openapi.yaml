@@ -834,6 +834,7 @@ components:
     ItemStatusEnum:
       type: string
       enum:
+      - DRAFT
       - PENDING
       - APPROVED
       - REJECTED
