@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrderCreatedEvent",
+  "description": "Event published to message broker when a user successfully places a book order",
+  "type": "object",
+  "required": [
+    "eventId",
+    "orderId",
+    "userId",
+    "createdAt",
+    "items",
+    "totalAmount"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "orderId": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "totalAmount": {
+      "type": "number",
+      "minimum": 0
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "itemId",
+          "sellerId",
+          "quantity",
+          "price"
+        ],
+        "properties": {
+          "itemId": {
+            "type": "integer"
+          },
+          "sellerId": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "price": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

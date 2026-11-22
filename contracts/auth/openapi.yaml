@@ -1,0 +1,135 @@
+openapi: 3.1.0
+info:
+  title: Auth Service API
+  description: Authentication and Authorization service (JWT, RSA keys, role management).
+  version: 0.1.0
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Регистрация нового пользователя
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - role
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 6
+                  example: secret123
+                role:
+                  type: string
+                  enum: [CLIENT, SELLER]
+                  default: CLIENT
+                  example: CLIENT
+      responses:
+        '201':
+          description: Пользователь успешно зарегистрирован
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  email:
+                    type: string
+                  role:
+                    type: string
+        '400':
+          description: Пользователь с таким email уже существует или неверные данные
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Вход в систему (получение access токена и refresh куки)
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  example: secret123
+      responses:
+        '200':
+          description: Успешная аутентификация
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: refreshToken=abc123xyz; HttpOnly; Secure; SameSite=Strict; Path=/auth
+              description: Refresh-токен в защищенной HttpOnly cookie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                    description: JWT access token
+                  tokenType:
+                    type: string
+                    example: Bearer
+                  expiresIn:
+                    type: integer
+                    example: 900
+        '401':
+          description: Неверный email или пароль
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Обновление Access-токена с использованием Refresh-куки
+      operationId: refreshToken
+      responses:
+        '200':
+          description: Новый access токен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  tokenType:
+                    type: string
+                    example: Bearer
+        '401':
+          description: Токен недействителен или истек
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Выход из системы (отзыв refresh токена)
+      operationId: logoutUser
+      responses:
+        '200':
+          description: Успешный выход
