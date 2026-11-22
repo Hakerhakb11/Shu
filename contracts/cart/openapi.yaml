@@ -1,0 +1,127 @@
+openapi: 3.1.0
+info:
+  title: Cart Service API
+  description: Shopping cart service for managing user book reservations (Redis backend).
+  version: 0.1.0
+paths:
+  /cart:
+    get:
+      tags:
+        - Cart
+      summary: Получить корзину текущего пользователя
+      operationId: getCart
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Идентификатор пользователя (пробрасывается из API Gateway)
+      responses:
+        '200':
+          description: Содержимое корзины
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        itemId:
+                          type: integer
+                        quantity:
+                          type: integer
+                        title:
+                          type: string
+                        price:
+                          type: number
+                        imageUrl:
+                          type: string
+                        isAvailable:
+                          type: boolean
+                          description: Доступен ли товар (не удален ли продавцом)
+                  totalPrice:
+                    type: number
+        '401':
+          description: Не авторизован
+
+    delete:
+      tags:
+        - Cart
+      summary: Полная очистка корзины (после оформления заказа)
+      operationId: clearCart
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Корзина успешно очищена
+
+  /cart/items:
+    post:
+      tags:
+        - Cart
+      summary: Добавить товар в корзину (или увеличить количество)
+      operationId: addItemToCart
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - itemId
+              properties:
+                itemId:
+                  type: integer
+                  example: 42
+                quantity:
+                  type: integer
+                  minimum: 1
+                  default: 1
+                  example: 1
+      responses:
+        '200':
+          description: Товар добавлен в корзину
+        '400':
+          description: Товар недоступен для покупки или недостаточно остатка
+
+  /cart/items/{itemId}:
+    delete:
+      tags:
+        - Cart
+      summary: Уменьшить количество или удалить товар из корзины
+      operationId: removeItemFromCart
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: quantity
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: Количество для удаления (если не указано — удаляется вся позиция)
+      responses:
+        '204':
+          description: Позиция удалена или количество уменьшено
