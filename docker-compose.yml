@@ -70,8 +70,15 @@ services:
   cart:
     build: services/cart-service
     container_name: shu-cart-service
+    restart: unless-stopped
     ports:
       - "${CART_SERVICE_PORT:-8083}:5000"
+    environment:
+      REDIS_URL: redis://redis:6379/1
+      CATALOG_SERVICE_URL: http://catalog:5000
+    depends_on:
+      redis:
+        condition: service_healthy
   cart-postgres:
     image: postgres:18
     container_name: shu-cart-postgres
