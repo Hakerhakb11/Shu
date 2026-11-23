@@ -18,6 +18,9 @@ dist/
 *.jar
 *.war
 *.ear
+.idea/
+*.iml
+target/
 # Maven Wrapper
 **/.mvn
 **/mvnw
