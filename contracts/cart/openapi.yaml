@@ -1,127 +1,376 @@
 openapi: 3.1.0
 info:
   title: Cart Service API
-  description: Shopping cart service for managing user book reservations (Redis backend).
   version: 0.1.0
+  description: >
+    Сервис корзины книжного маркетплейса Shu на базе Redis (Hash cart:{user_id}).
+    Синхронизирован с готовым Catalog Service (integer item_id, POST /catalog/items/batch,
+    единый формат ErrorResponse и GET /health).
+
 paths:
   /cart:
     get:
       tags:
         - Cart
-      summary: Получить корзину текущего пользователя
-      operationId: getCart
+      summary: Получить содержимое корзины текущего пользователя
+      description: >
+        Читает позиции из Redis (ключ cart:{user_id}) и запрашивает актуальные данные
+        в Catalog Service одним запросом POST /catalog/items/batch ({"item_ids": [...]}).
+        Если товар удален продавцом, не одобрен или его не хватает на складе, он остается
+        в списке с available=false и полем message, но не включается в total_price.
+      operationId: get_cart
+      security:
+        - UserIdAuth: []
       parameters:
-        - name: X-User-Id
-          in: header
-          required: true
-          schema:
-            type: string
-          description: Идентификатор пользователя (пробрасывается из API Gateway)
+        - $ref: "#/components/parameters/UserIdHeader"
       responses:
-        '200':
-          description: Содержимое корзины
+        "200":
+          description: Содержимое корзины с актуальными ценами и доступностью
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        itemId:
-                          type: integer
-                        quantity:
-                          type: integer
-                        title:
-                          type: string
-                        price:
-                          type: number
-                        imageUrl:
-                          type: string
-                        isAvailable:
-                          type: boolean
-                          description: Доступен ли товар (не удален ли продавцом)
-                  totalPrice:
-                    type: number
-        '401':
-          description: Не авторизован
+                $ref: "#/components/schemas/CartResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
     delete:
       tags:
         - Cart
-      summary: Полная очистка корзины (после оформления заказа)
-      operationId: clearCart
+      summary: Полностью очистить корзину пользователя
+      description: Удаляет ключ cart:{user_id} в Redis (например, после оформления заказа).
+      operationId: clear_cart
+      security:
+        - UserIdAuth: []
       parameters:
-        - name: X-User-Id
-          in: header
-          required: true
-          schema:
-            type: string
+        - $ref: "#/components/parameters/UserIdHeader"
       responses:
-        '204':
+        "204":
           description: Корзина успешно очищена
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /cart/items:
     post:
       tags:
         - Cart
-      summary: Добавить товар в корзину (или увеличить количество)
-      operationId: addItemToCart
+      summary: Добавить товар в корзину или увеличить его количество
+      description: >
+        Увеличивает количество item_id в Redis (HINCRBY cart:{user_id} {item_id} {quantity})
+        и обновляет TTL ключа корзины.
+      operationId: add_cart_item
+      security:
+        - UserIdAuth: []
       parameters:
-        - name: X-User-Id
-          in: header
-          required: true
-          schema:
-            type: string
+        - $ref: "#/components/parameters/UserIdHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - itemId
-              properties:
-                itemId:
-                  type: integer
-                  example: 42
-                quantity:
-                  type: integer
-                  minimum: 1
-                  default: 1
-                  example: 1
+              $ref: "#/components/schemas/CartItemAddRequest"
       responses:
-        '200':
-          description: Товар добавлен в корзину
-        '400':
-          description: Товар недоступен для покупки или недостаточно остатка
+        "200":
+          description: Количество товара в корзине обновлено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartItemQuantityResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
 
-  /cart/items/{itemId}:
+  /cart/items/{item_id}:
     delete:
       tags:
         - Cart
       summary: Уменьшить количество или удалить товар из корзины
-      operationId: removeItemFromCart
+      description: >
+        Если query-параметр quantity не передан — позиция удаляется из корзины целиком.
+        Если quantity передан — текущее количество уменьшается на quantity; при результате <= 0
+        позиция удаляется из Redis (в ответе возвращается quantity: 0).
+      operationId: remove_cart_item
+      security:
+        - UserIdAuth: []
       parameters:
-        - name: X-User-Id
-          in: header
-          required: true
-          schema:
-            type: string
-        - name: itemId
+        - $ref: "#/components/parameters/UserIdHeader"
+        - name: item_id
           in: path
           required: true
-          schema:
-            type: integer
-        - name: quantity
-          in: query
-          required: false
+          description: ID книги из Catalog Service
           schema:
             type: integer
             minimum: 1
-          description: Количество для удаления (если не указано — удаляется вся позиция)
+            example: 42
+        - name: quantity
+          in: query
+          required: false
+          description: На сколько уменьшить количество (если не указано — удалить всю позицию)
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
       responses:
-        '204':
-          description: Позиция удалена или количество уменьшено
+        "200":
+          description: Количество уменьшено или позиция удалена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartItemQuantityResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health Check
+      description: Проверка работоспособности сервиса и доступности Redis.
+      operationId: health_check
+      responses:
+        "200":
+          description: Сервис работает
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                example:
+                  status: ok
+                  redis: ok
+
+components:
+  securitySchemes:
+    UserIdAuth:
+      type: apiKey
+      in: header
+      name: X-User-Id
+      description: Идентификатор пользователя, проброшенный API Gateway после проверки JWT
+
+  parameters:
+    UserIdHeader:
+      name: X-User-Id
+      in: header
+      required: true
+      description: Идентификатор пользователя (пробрасывается API Gateway)
+      schema:
+        type: string
+        minLength: 1
+        example: "user-123"
+
+  responses:
+    BadRequest:
+      description: Некорректные параметры запроса или недопустимая операция
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Отсутствует или пустой заголовок X-User-Id
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Товар отсутствует в корзине пользователя (ITEM_NOT_IN_CART)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ValidationError:
+      description: Ошибка валидации запроса (FastAPI / Pydantic)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/HTTPValidationError"
+    ServiceUnavailable:
+      description: Catalog Service или Redis временно недоступны
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    CartItemAddRequest:
+      type: object
+      required:
+        - item_id
+      properties:
+        item_id:
+          type: integer
+          minimum: 1
+          description: ID книги из Catalog Service
+          example: 42
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 99
+          default: 1
+          description: Количество добавляемых экземпляров
+          example: 1
+
+    CartItemQuantityResponse:
+      type: object
+      required:
+        - item_id
+        - quantity
+      properties:
+        item_id:
+          type: integer
+          example: 42
+        quantity:
+          type: integer
+          minimum: 0
+          description: Итоговое количество товара в корзине (0 означает, что позиция удалена)
+          example: 2
+
+    UnavailableReason:
+      type: string
+      enum:
+        - DELETED
+        - NOT_APPROVED
+        - OUT_OF_STOCK
+        - INSUFFICIENT_STOCK
+      description: >
+        DELETED — товара нет в ответе /catalog/items/batch (удален);
+        NOT_APPROVED — статус товара не APPROVED;
+        OUT_OF_STOCK — stock == 0;
+        INSUFFICIENT_STOCK — на складе меньше экземпляров, чем в корзине (0 < stock < quantity).
+
+    CartItemResponse:
+      type: object
+      required:
+        - item_id
+        - quantity
+        - available
+        - line_total
+      properties:
+        item_id:
+          type: integer
+          example: 42
+        quantity:
+          type: integer
+          minimum: 1
+          example: 2
+        available:
+          type: boolean
+          description: true, если книга APPROVED в Catalog Service и stock >= quantity
+          example: true
+        unavailable_reason:
+          anyOf:
+            - $ref: "#/components/schemas/UnavailableReason"
+            - type: "null"
+          default: null
+        message:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: Сообщение для пользователя, если available=false (например, "Товар недоступен")
+          default: null
+          example: null
+        title:
+          anyOf:
+            - type: string
+            - type: "null"
+          example: "Дюна"
+        author:
+          anyOf:
+            - type: string
+            - type: "null"
+          example: "Фрэнк Герберт"
+        price:
+          anyOf:
+            - type: number
+            - type: "null"
+          example: 890.0
+        stock:
+          anyOf:
+            - type: integer
+            - type: "null"
+          description: Актуальный остаток на складе из Catalog Service
+          example: 5
+        image_url:
+          anyOf:
+            - type: string
+            - type: "null"
+          example: "https://example.com/dune.jpg"
+        line_total:
+          type: number
+          minimum: 0
+          description: "price * quantity, либо 0 если available=false"
+          example: 1780.0
+
+    CartResponse:
+      type: object
+      required:
+        - user_id
+        - items
+        - total_price
+        - has_unavailable_items
+      properties:
+        user_id:
+          type: string
+          example: "user-123"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItemResponse"
+        total_price:
+          type: number
+          minimum: 0
+          description: Сумма line_total только по доступным (available=true) товарам
+          example: 1780.0
+        has_unavailable_items:
+          type: boolean
+          description: true, если в корзине есть хотя бы один недоступный товар
+          example: false
+
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+        - error_code
+      properties:
+        detail:
+          type: string
+          description: Человекочитаемое описание ошибки
+          example: "Товар с ID 42 не найден в корзине"
+        error_code:
+          type: string
+          description: Машиночитаемый код ошибки
+          example: "ITEM_NOT_IN_CART"
+
+    ValidationError:
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      properties:
+        loc:
+          type: array
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+        msg:
+          type: string
+        type:
+          type: string
+
+    HTTPValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationError"
