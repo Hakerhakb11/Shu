@@ -5,13 +5,28 @@ services:
   api-gateway:
     build: services/api-gateway
     container_name: shu-api-gateway
-    ports: ${API_GATEWAY_PORT:-8080}:8080
+    ports:
+      - "${API_GATEWAY_PORT:-8080}:8080"
 
   # auth────────────────────────────────────────────────────────────────────────────
   auth:
     build: services/auth-service
     container_name: shu-auth-service
-    ports: ${AUTH_SERVICE_PORT:-8081}:8080
+    restart: unless-stopped
+    ports:
+      - "${AUTH_SERVICE_PORT:-8081}:8080"
+    environment:
+      AUTH_DB_URL: jdbc:postgresql://auth-postgres:5432/${AUTH_DB_NAME:-auth_db}
+      AUTH_DB_USER: ${AUTH_DB_USER:-auth_user}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-auth_password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AUTH_COOKIE_SECURE: "false"
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
   auth-postgres:
     image: postgres:18
     container_name: shu-auth-postgres
@@ -34,7 +49,8 @@ services:
   catalog:
     build: services/catalog-service
     container_name: shu-catalog-service
-    ports: ${CATALOG_SERVICE_PORT:-8082}:5000
+    ports:
+      - "${CATALOG_SERVICE_PORT:-8082}:5000"
   catalog-postgres:
     image: postgres:18
     container_name: shu-catalog-postgres
@@ -57,7 +73,8 @@ services:
   cart:
     build: services/cart-service
     container_name: shu-cart-service
-    ports: ${CART_SERVICE_PORT:-8083}:5000
+    ports:
+      - "${CART_SERVICE_PORT:-8083}:5000"
   cart-postgres:
     image: postgres:18
     container_name: shu-cart-postgres
@@ -97,6 +114,9 @@ services:
     restart: unless-stopped
     ports:
       - "${CONTRACTS_PORT:-8085}:8080"
+    environment:
+      URLS: '[{"url":"/contracts/auth/openapi.yaml","name":"Auth Service API"},{"url":"/contracts/catalog/openapi.yaml","name":"Catalog Service API"},{"url":"/contracts/cart/openapi.yaml","name":"Cart Service API"}]'
+      URLS_PRIMARY_NAME: Auth Service API
 
 volumes:
   auth_pgdata:

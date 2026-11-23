@@ -13,7 +13,7 @@ ENV URLS="[ \
   { \"url\": \"/contracts/cart/openapi.yaml\", \"name\": \"Cart Service API\" } \
 ]"
 
-ENV URLS_PRIMARY_NAME="Catalog Service API"
+ENV URLS_PRIMARY_NAME="Auth Service API"
 ENV DEEP_LINKING="true"
 ENV DISPLAY_REQUEST_DURATION="true"
 ENV DOC_EXPANSION="list"
