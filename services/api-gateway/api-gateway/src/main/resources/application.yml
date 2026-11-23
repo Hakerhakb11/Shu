@@ -1,0 +1,28 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Публичный RSA-ключ auth-service (PEM, "-----BEGIN PUBLIC KEY-----")
+          public-key-location: ${JWT_PUBLIC_KEY_LOCATION:file:/keys/public.pem}
+
+services:
+  auth-url: ${AUTH_SERVICE_URL:http://auth:8080}
+  catalog-url: ${CATALOG_SERVICE_URL:http://catalog:5000}
+  cart-url: ${CART_SERVICE_URL:http://cart:5000}
+
+gateway:
+  jwt:
+    # Имя claim в JWT, из которого берётся роль для заголовка X-User-Role
+    role-claim: ${JWT_ROLE_CLAIM:role}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
