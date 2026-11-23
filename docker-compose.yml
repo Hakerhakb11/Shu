@@ -3,7 +3,7 @@ name: shu
 services:
   # api-gateway────────────────────────────────────────────────────────────────────────────
   api-gateway:
-    build: services/api-gateway
+    build: services/api-gateway/api-gateway
     container_name: shu-api-gateway
     ports:
       - "${API_GATEWAY_PORT:-8080}:8080"
@@ -96,6 +96,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    # frontend────────────────────────────────────────────────────────────────────────────
+  frontend:
+    build: frontend
+    container_name: shu-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - api-gateway
 
   redis:
     image: redis:8-alpine
